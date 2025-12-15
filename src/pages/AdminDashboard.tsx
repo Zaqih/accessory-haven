@@ -1,136 +1,271 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
   ShoppingCart,
   Users,
-  BarChart3,
   Settings,
   LogOut,
   Plus,
   Search,
   Edit,
   Trash2,
-  Eye,
   TrendingUp,
   DollarSign,
-  ShoppingBag,
+  Save,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 
-const stats = [
-  {
-    label: "Total Revenue",
-    value: "$45,231",
-    change: "+12.5%",
-    icon: DollarSign,
-  },
-  {
-    label: "Total Orders",
-    value: "1,234",
-    change: "+8.2%",
-    icon: ShoppingCart,
-  },
-  {
-    label: "Total Products",
-    value: "156",
-    change: "+3.1%",
-    icon: Package,
-  },
-  {
-    label: "Active Users",
-    value: "8,456",
-    change: "+15.3%",
-    icon: Users,
-  },
-];
+interface Product {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  original_price: number | null;
+  image: string | null;
+  category: string;
+  stock: number;
+  is_active: boolean;
+  is_new: boolean;
+}
 
-const products = [
-  {
-    id: 1,
-    name: "Premium Leather Case",
-    category: "Cases",
-    price: 49.99,
-    stock: 120,
-    status: "Active",
-    image: "https://images.unsplash.com/photo-1601593346740-925612772716?w=100",
-  },
-  {
-    id: 2,
-    name: "Wireless Earbuds Pro",
-    category: "Audio",
-    price: 129.99,
-    stock: 45,
-    status: "Active",
-    image: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=100",
-  },
-  {
-    id: 3,
-    name: "Fast Charging Cable",
-    category: "Cables",
-    price: 24.99,
-    stock: 200,
-    status: "Active",
-    image: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=100",
-  },
-  {
-    id: 4,
-    name: "Tempered Glass Shield",
-    category: "Protection",
-    price: 19.99,
-    stock: 0,
-    status: "Out of Stock",
-    image: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=100",
-  },
-];
+interface UserProfile {
+  id: string;
+  user_id: string;
+  full_name: string | null;
+  phone: string | null;
+  address: string | null;
+  created_at: string;
+}
 
-const recentOrders = [
-  {
-    id: "ORD-001",
-    customer: "John Doe",
-    date: "Dec 15, 2024",
-    total: 149.99,
-    status: "Completed",
-  },
-  {
-    id: "ORD-002",
-    customer: "Jane Smith",
-    date: "Dec 14, 2024",
-    total: 299.99,
-    status: "Processing",
-  },
-  {
-    id: "ORD-003",
-    customer: "Mike Johnson",
-    date: "Dec 14, 2024",
-    total: 79.99,
-    status: "Shipped",
-  },
-];
+const formatRupiah = (amount: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productForm, setProductForm] = useState({
+    name: "",
+    description: "",
+    price: "",
+    original_price: "",
+    image: "",
+    category: "",
+    stock: "",
+    is_active: true,
+    is_new: false,
+  });
   const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    const checkAdminAndFetchData = async () => {
+      // Check if user is admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (!roleData) {
+        toast({
+          title: "Akses Ditolak",
+          description: "Anda tidak memiliki akses admin",
+          variant: "destructive",
+        });
+        navigate("/");
+        return;
+      }
+
+      setIsAdmin(true);
+
+      // Fetch products
+      const { data: productsData } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (productsData) {
+        setProducts(productsData as Product[]);
+      }
+
+      // Fetch users
+      const { data: usersData } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (usersData) {
+        setUsers(usersData as UserProfile[]);
+      }
+
+      setIsLoading(false);
+    };
+
+    checkAdminAndFetchData();
+  }, [user, navigate, toast]);
+
+  const handleSaveProduct = async () => {
+    if (!productForm.name || !productForm.price || !productForm.category) {
+      toast({
+        title: "Error",
+        description: "Nama, harga, dan kategori wajib diisi",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const productData = {
+      name: productForm.name,
+      description: productForm.description || null,
+      price: parseFloat(productForm.price),
+      original_price: productForm.original_price ? parseFloat(productForm.original_price) : null,
+      image: productForm.image || null,
+      category: productForm.category,
+      stock: parseInt(productForm.stock) || 0,
+      is_active: productForm.is_active,
+      is_new: productForm.is_new,
+    };
+
+    if (editingProduct) {
+      const { error } = await supabase
+        .from("products")
+        .update(productData)
+        .eq("id", editingProduct.id);
+
+      if (error) {
+        toast({ title: "Error", description: "Gagal mengupdate produk", variant: "destructive" });
+        return;
+      }
+
+      setProducts(products.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p));
+      toast({ title: "Berhasil", description: "Produk berhasil diupdate" });
+    } else {
+      const { data, error } = await supabase
+        .from("products")
+        .insert(productData)
+        .select()
+        .single();
+
+      if (error) {
+        toast({ title: "Error", description: "Gagal menambahkan produk", variant: "destructive" });
+        return;
+      }
+
+      setProducts([data as Product, ...products]);
+      toast({ title: "Berhasil", description: "Produk berhasil ditambahkan" });
+    }
+
+    resetForm();
+    setIsDialogOpen(false);
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    const { error } = await supabase.from("products").delete().eq("id", id);
+
+    if (error) {
+      toast({ title: "Error", description: "Gagal menghapus produk", variant: "destructive" });
+      return;
+    }
+
+    setProducts(products.filter(p => p.id !== id));
+    toast({ title: "Berhasil", description: "Produk berhasil dihapus" });
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setProductForm({
+      name: product.name,
+      description: product.description || "",
+      price: product.price.toString(),
+      original_price: product.original_price?.toString() || "",
+      image: product.image || "",
+      category: product.category,
+      stock: product.stock.toString(),
+      is_active: product.is_active,
+      is_new: product.is_new,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const resetForm = () => {
+    setEditingProduct(null);
+    setProductForm({
+      name: "",
+      description: "",
+      price: "",
+      original_price: "",
+      image: "",
+      category: "",
+      stock: "",
+      is_active: true,
+      is_new: false,
+    });
+  };
 
   const sidebarItems = [
     { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { id: "products", icon: Package, label: "Products" },
-    { id: "orders", icon: ShoppingCart, label: "Orders" },
-    { id: "customers", icon: Users, label: "Customers" },
-    { id: "analytics", icon: BarChart3, label: "Analytics" },
-    { id: "settings", icon: Settings, label: "Settings" },
+    { id: "products", icon: Package, label: "Produk" },
+    { id: "customers", icon: Users, label: "Pengguna" },
+    { id: "settings", icon: Settings, label: "Pengaturan" },
   ];
 
-  const handleDeleteProduct = (id: number) => {
-    toast({
-      title: "Product Deleted",
-      description: `Product #${id} has been removed.`,
-    });
-  };
+  const stats = [
+    { label: "Total Pendapatan", value: formatRupiah(45231000), change: "+12.5%", icon: DollarSign },
+    { label: "Total Pesanan", value: "1,234", change: "+8.2%", icon: ShoppingCart },
+    { label: "Total Produk", value: products.length.toString(), change: "+3.1%", icon: Package },
+    { label: "Total Pengguna", value: users.length.toString(), change: "+15.3%", icon: Users },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Memuat dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -141,7 +276,7 @@ const AdminDashboard = () => {
             <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold">T</span>
             </div>
-            <span className="text-xl font-bold text-foreground">TechGear</span>
+            <span className="text-xl font-bold text-foreground">Admin</span>
           </Link>
         </div>
 
@@ -166,7 +301,7 @@ const AdminDashboard = () => {
           <Link to="/">
             <Button variant="ghost" className="w-full justify-start gap-3">
               <LogOut className="h-5 w-5" />
-              Back to Store
+              Kembali ke Toko
             </Button>
           </Link>
         </div>
@@ -178,27 +313,119 @@ const AdminDashboard = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+              {sidebarItems.find(item => item.id === activeTab)?.label}
             </h1>
-            <p className="text-muted-foreground">
-              Welcome back, Admin
-            </p>
+            <p className="text-muted-foreground">Selamat datang, Admin</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search..."
+                placeholder="Cari..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 w-64"
               />
             </div>
             {activeTab === "products" && (
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Product
-              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Tambah Produk
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{editingProduct ? "Edit Produk" : "Tambah Produk Baru"}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Nama Produk *</Label>
+                      <Input
+                        value={productForm.name}
+                        onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                        placeholder="Nama produk"
+                      />
+                    </div>
+                    <div>
+                      <Label>Deskripsi</Label>
+                      <Textarea
+                        value={productForm.description}
+                        onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                        placeholder="Deskripsi produk"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Harga (Rp) *</Label>
+                        <Input
+                          type="number"
+                          value={productForm.price}
+                          onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <Label>Harga Asli (Rp)</Label>
+                        <Input
+                          type="number"
+                          value={productForm.original_price}
+                          onChange={(e) => setProductForm({ ...productForm, original_price: e.target.value })}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>URL Gambar</Label>
+                      <Input
+                        value={productForm.image}
+                        onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Kategori *</Label>
+                        <Input
+                          value={productForm.category}
+                          onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                          placeholder="cases, audio, dll"
+                        />
+                      </div>
+                      <div>
+                        <Label>Stok</Label>
+                        <Input
+                          type="number"
+                          value={productForm.stock}
+                          onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={productForm.is_active}
+                          onCheckedChange={(checked) => setProductForm({ ...productForm, is_active: checked })}
+                        />
+                        <Label>Aktif</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={productForm.is_new}
+                          onCheckedChange={(checked) => setProductForm({ ...productForm, is_new: checked })}
+                        />
+                        <Label>Produk Baru</Label>
+                      </div>
+                    </div>
+                    <Button onClick={handleSaveProduct} className="w-full">
+                      <Save className="h-4 w-4 mr-2" />
+                      {editingProduct ? "Simpan Perubahan" : "Tambah Produk"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
         </div>
@@ -206,13 +433,9 @@ const AdminDashboard = () => {
         {/* Dashboard Content */}
         {activeTab === "dashboard" && (
           <div className="space-y-8 animate-fade-in">
-            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat, index) => (
-                <div
-                  key={index}
-                  className="glass rounded-xl p-6 border border-border"
-                >
+                <div key={index} className="glass rounded-xl p-6 border border-border">
                   <div className="flex items-center justify-between mb-4">
                     <div className="w-12 h-12 rounded-lg gradient-primary flex items-center justify-center">
                       <stat.icon className="h-6 w-6 text-primary-foreground" />
@@ -222,62 +445,10 @@ const AdminDashboard = () => {
                       {stat.change}
                     </span>
                   </div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {stat.value}
-                  </p>
+                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                   <p className="text-sm text-muted-foreground">{stat.label}</p>
                 </div>
               ))}
-            </div>
-
-            {/* Recent Orders */}
-            <div className="glass rounded-xl p-6 border border-border">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-foreground">
-                  Recent Orders
-                </h3>
-                <Button variant="ghost" size="sm">
-                  View All
-                </Button>
-              </div>
-              <div className="space-y-4">
-                {recentOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="flex items-center justify-between p-4 rounded-lg bg-secondary/50"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-sm font-bold text-primary-foreground">
-                        {order.customer.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {order.customer}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {order.id} • {order.date}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-foreground">
-                        ${order.total}
-                      </p>
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          order.status === "Completed"
-                            ? "bg-green-500/20 text-green-400"
-                            : order.status === "Shipped"
-                            ? "bg-blue-500/20 text-blue-400"
-                            : "bg-yellow-500/20 text-yellow-400"
-                        }`}
-                      >
-                        {order.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         )}
@@ -288,65 +459,40 @@ const AdminDashboard = () => {
             <table className="w-full">
               <thead className="bg-secondary/50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                    Product
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                    Category
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                    Price
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                    Stock
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-right text-sm font-semibold text-foreground">
-                    Actions
-                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Produk</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Kategori</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Harga</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Stok</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Status</th>
+                  <th className="px-6 py-4 text-right text-sm font-semibold text-foreground">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {products.map((product) => (
+                {products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).map((product) => (
                   <tr key={product.id} className="hover:bg-secondary/30">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <img
-                          src={product.image}
+                          src={product.image || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100"}
                           alt={product.name}
                           className="w-12 h-12 rounded-lg object-cover"
                         />
-                        <span className="font-medium text-foreground">
-                          {product.name}
-                        </span>
+                        <span className="font-medium text-foreground">{product.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground">
-                      {product.category}
-                    </td>
-                    <td className="px-6 py-4 text-foreground">
-                      ${product.price}
-                    </td>
+                    <td className="px-6 py-4 text-muted-foreground">{product.category}</td>
+                    <td className="px-6 py-4 text-foreground">{formatRupiah(product.price)}</td>
                     <td className="px-6 py-4 text-foreground">{product.stock}</td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          product.status === "Active"
-                            ? "bg-green-500/20 text-green-400"
-                            : "bg-red-500/20 text-red-400"
-                        }`}
-                      >
-                        {product.status}
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        product.is_active ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                      }`}>
+                        {product.is_active ? "Aktif" : "Nonaktif"}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
@@ -361,37 +507,67 @@ const AdminDashboard = () => {
                     </td>
                   </tr>
                 ))}
+                {products.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                      Belum ada produk. Klik "Tambah Produk" untuk menambahkan.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* Orders Content */}
-        {activeTab === "orders" && (
-          <div className="glass rounded-xl p-6 border border-border animate-fade-in">
-            <div className="text-center py-12">
-              <ShoppingBag className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                Order Management
-              </h3>
-              <p className="text-muted-foreground">
-                Full order management coming soon...
-              </p>
-            </div>
+        {/* Users Content */}
+        {activeTab === "customers" && (
+          <div className="glass rounded-xl border border-border animate-fade-in overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-secondary/50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Pengguna</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Telepon</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Alamat</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Bergabung</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {users.filter(u => (u.full_name || "").toLowerCase().includes(searchQuery.toLowerCase())).map((userItem) => (
+                  <tr key={userItem.id} className="hover:bg-secondary/30">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-sm font-bold text-primary-foreground">
+                          {(userItem.full_name || "U").charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-foreground">{userItem.full_name || "Tanpa Nama"}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-muted-foreground">{userItem.phone || "-"}</td>
+                    <td className="px-6 py-4 text-muted-foreground">{userItem.address || "-"}</td>
+                    <td className="px-6 py-4 text-muted-foreground">
+                      {new Date(userItem.created_at).toLocaleDateString("id-ID")}
+                    </td>
+                  </tr>
+                ))}
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
+                      Belum ada pengguna terdaftar.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
 
-        {/* Other tabs placeholder */}
-        {["customers", "analytics", "settings"].includes(activeTab) && (
+        {/* Settings placeholder */}
+        {activeTab === "settings" && (
           <div className="glass rounded-xl p-6 border border-border animate-fade-in">
             <div className="text-center py-12">
               <Settings className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-              </h3>
-              <p className="text-muted-foreground">
-                This section is under development...
-              </p>
+              <h3 className="text-xl font-semibold text-foreground mb-2">Pengaturan</h3>
+              <p className="text-muted-foreground">Fitur pengaturan dalam pengembangan...</p>
             </div>
           </div>
         )}

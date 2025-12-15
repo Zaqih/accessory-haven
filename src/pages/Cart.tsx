@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, CreditCard, Wallet, Building2, Smartphone } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Building2, Wallet, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -30,10 +30,32 @@ const formatRupiah = (amount: number) => {
 };
 
 const paymentMethods = [
-  { id: "transfer", name: "Transfer Bank", icon: Building2, description: "BCA, Mandiri, BNI, BRI" },
-  { id: "ewallet", name: "E-Wallet", icon: Wallet, description: "GoPay, OVO, DANA, ShopeePay" },
-  { id: "qris", name: "QRIS", icon: Smartphone, description: "Scan QR untuk bayar" },
-  { id: "card", name: "Kartu Kredit/Debit", icon: CreditCard, description: "Visa, Mastercard" },
+  { 
+    id: "transfer", 
+    name: "Transfer Bank", 
+    icon: Building2, 
+    description: "BCA, Mandiri, BNI, BRI",
+    info: {
+      type: "rekening",
+      banks: [
+        { name: "BCA", number: "1234567890", holder: "PT TechGear Indonesia" },
+        { name: "Mandiri", number: "0987654321", holder: "PT TechGear Indonesia" },
+        { name: "BNI", number: "1122334455", holder: "PT TechGear Indonesia" },
+        { name: "BRI", number: "5566778899", holder: "PT TechGear Indonesia" },
+      ]
+    }
+  },
+  { 
+    id: "ewallet", 
+    name: "E-Wallet", 
+    icon: Wallet, 
+    description: "GoPay, OVO, DANA, ShopeePay",
+    info: {
+      type: "phone",
+      number: "081234567890",
+      name: "TechGear Store"
+    }
+  },
 ];
 
 const Cart = () => {
@@ -41,6 +63,8 @@ const Cart = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPayment, setSelectedPayment] = useState("transfer");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [showPaymentInfo, setShowPaymentInfo] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -119,6 +143,12 @@ const Cart = () => {
       return;
     }
 
+    setShowPaymentInfo(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!user) return;
+
     setIsCheckingOut(true);
     
     // Simulate checkout process
@@ -129,11 +159,19 @@ const Cart = () => {
     
     setCartItems([]);
     setIsCheckingOut(false);
+    setShowPaymentInfo(false);
     
     toast({
       title: "Pesanan Berhasil!",
       description: `Pembayaran via ${paymentMethods.find(p => p.id === selectedPayment)?.name}. Terima kasih telah berbelanja!`,
     });
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2000);
+    toast({ title: "Disalin!", description: "Nomor berhasil disalin ke clipboard" });
   };
 
   const subtotal = cartItems.reduce(
@@ -142,6 +180,8 @@ const Cart = () => {
   );
   const shipping = subtotal > 500000 ? 0 : 25000;
   const total = subtotal + shipping;
+
+  const selectedPaymentMethod = paymentMethods.find(p => p.id === selectedPayment);
 
   if (isLoading) {
     return (
@@ -272,46 +312,130 @@ const Cart = () => {
                   )}
 
                   {/* Payment Methods */}
-                  <div className="mb-6">
-                    <h4 className="font-medium text-foreground mb-3">Metode Pembayaran</h4>
-                    <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment} className="space-y-3">
-                      {paymentMethods.map((method) => (
-                        <div
-                          key={method.id}
-                          className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                            selectedPayment === method.id
-                              ? "border-primary bg-primary/10"
-                              : "border-border hover:border-primary/50"
-                          }`}
-                          onClick={() => setSelectedPayment(method.id)}
-                        >
-                          <RadioGroupItem value={method.id} id={method.id} />
-                          <method.icon className="h-5 w-5 text-primary" />
-                          <Label htmlFor={method.id} className="flex-1 cursor-pointer">
-                            <p className="font-medium text-foreground">{method.name}</p>
-                            <p className="text-xs text-muted-foreground">{method.description}</p>
-                          </Label>
+                  {!showPaymentInfo ? (
+                    <>
+                      <div className="mb-6">
+                        <h4 className="font-medium text-foreground mb-3">Metode Pembayaran</h4>
+                        <RadioGroup value={selectedPayment} onValueChange={setSelectedPayment} className="space-y-3">
+                          {paymentMethods.map((method) => (
+                            <div
+                              key={method.id}
+                              className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                                selectedPayment === method.id
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border hover:border-primary/50"
+                              }`}
+                              onClick={() => setSelectedPayment(method.id)}
+                            >
+                              <RadioGroupItem value={method.id} id={method.id} />
+                              <method.icon className="h-5 w-5 text-primary" />
+                              <Label htmlFor={method.id} className="flex-1 cursor-pointer">
+                                <p className="font-medium text-foreground">{method.name}</p>
+                                <p className="text-xs text-muted-foreground">{method.description}</p>
+                              </Label>
+                            </div>
+                          ))}
+                        </RadioGroup>
+                      </div>
+
+                      <Button 
+                        variant="hero" 
+                        size="lg" 
+                        className="w-full mb-4"
+                        onClick={handleCheckout}
+                      >
+                        Checkout
+                        <ArrowRight className="ml-2 h-5 w-5" />
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="space-y-4">
+                      <h4 className="font-medium text-foreground">Informasi Pembayaran</h4>
+                      
+                      {selectedPaymentMethod?.id === "transfer" && (
+                        <div className="space-y-3">
+                          <p className="text-sm text-muted-foreground">Transfer ke salah satu rekening berikut:</p>
+                          {selectedPaymentMethod.info.banks.map((bank) => (
+                            <div key={bank.name} className="p-3 rounded-lg bg-secondary/50 border border-border">
+                              <p className="font-semibold text-foreground">{bank.name}</p>
+                              <div className="flex items-center justify-between mt-1">
+                                <div>
+                                  <p className="text-lg font-mono text-primary">{bank.number}</p>
+                                  <p className="text-xs text-muted-foreground">a.n. {bank.holder}</p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(bank.number)}
+                                >
+                                  {copiedText === bank.number ? (
+                                    <Check className="h-4 w-4 text-green-400" />
+                                  ) : (
+                                    <Copy className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </RadioGroup>
-                  </div>
+                      )}
 
-                  <Button 
-                    variant="hero" 
-                    size="lg" 
-                    className="w-full mb-4"
-                    onClick={handleCheckout}
-                    disabled={isCheckingOut}
-                  >
-                    {isCheckingOut ? "Memproses..." : "Checkout"}
-                    {!isCheckingOut && <ArrowRight className="ml-2 h-5 w-5" />}
-                  </Button>
+                      {selectedPaymentMethod?.id === "ewallet" && (
+                        <div className="p-4 rounded-lg bg-secondary/50 border border-border">
+                          <p className="text-sm text-muted-foreground mb-2">Transfer ke nomor E-Wallet berikut:</p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-lg font-mono text-primary">{selectedPaymentMethod.info.number}</p>
+                              <p className="text-xs text-muted-foreground">a.n. {selectedPaymentMethod.info.name}</p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyToClipboard(selectedPaymentMethod.info.number)}
+                            >
+                              {copiedText === selectedPaymentMethod.info.number ? (
+                                <Check className="h-4 w-4 text-green-400" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
 
-                  <Link to="/products">
-                    <Button variant="outline" className="w-full">
-                      Lanjut Belanja
-                    </Button>
-                  </Link>
+                      <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
+                        <p className="text-sm text-foreground">
+                          <strong>Total Pembayaran:</strong> {formatRupiah(total)}
+                        </p>
+                      </div>
+
+                      <Button 
+                        variant="hero" 
+                        size="lg" 
+                        className="w-full"
+                        onClick={handleConfirmPayment}
+                        disabled={isCheckingOut}
+                      >
+                        {isCheckingOut ? "Memproses..." : "Konfirmasi Pembayaran"}
+                      </Button>
+
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={() => setShowPaymentInfo(false)}
+                      >
+                        Kembali
+                      </Button>
+                    </div>
+                  )}
+
+                  {!showPaymentInfo && (
+                    <Link to="/products">
+                      <Button variant="outline" className="w-full">
+                        Lanjut Belanja
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
