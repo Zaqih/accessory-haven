@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   User,
   Mail,
@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const orders = [
   {
@@ -45,21 +47,94 @@ const orders = [
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const [profile, setProfile] = useState({
-    name: "John Doe",
-    email: "john.doe@example.com",
-    phone: "+1 234 567 890",
-    address: "123 Tech Street, Silicon Valley, CA 94000",
+    full_name: "",
+    email: "",
+    phone: "",
+    address: "",
   });
 
-  const handleSave = () => {
+  useEffect(() => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    const fetchProfile = async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error fetching profile:", error);
+      }
+
+      setProfile({
+        full_name: data?.full_name || "",
+        email: user.email || "",
+        phone: data?.phone || "",
+        address: data?.address || "",
+      });
+      setIsLoading(false);
+    };
+
+    fetchProfile();
+  }, [user, navigate]);
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: profile.full_name,
+        phone: profile.phone,
+        address: profile.address,
+      })
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Gagal menyimpan profil. Silakan coba lagi.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsEditing(false);
     toast({
       title: "Profile Updated",
       description: "Your profile has been successfully updated.",
     });
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
+    navigate("/");
+  };
+
+  const getInitials = () => {
+    if (profile.full_name) {
+      return profile.full_name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    return profile.email?.slice(0, 2).toUpperCase() || "U";
   };
 
   const tabs = [
@@ -68,6 +143,17 @@ const Profile = () => {
     { id: "wishlist", icon: Heart, label: "Wishlist" },
     { id: "settings", icon: Settings, label: "Settings" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,14 +169,14 @@ const Profile = () => {
                 <div className="text-center mb-6">
                   <div className="relative inline-block">
                     <div className="w-24 h-24 rounded-full gradient-primary flex items-center justify-center text-3xl font-bold text-primary-foreground">
-                      JD
+                      {getInitials()}
                     </div>
                     <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors">
                       <Camera className="h-4 w-4" />
                     </button>
                   </div>
                   <h2 className="mt-4 text-lg font-semibold text-foreground">
-                    {profile.name}
+                    {profile.full_name || "User"}
                   </h2>
                   <p className="text-sm text-muted-foreground">{profile.email}</p>
                 </div>
@@ -111,7 +197,10 @@ const Profile = () => {
                       {tab.label}
                     </button>
                   ))}
-                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 transition-colors">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+                  >
                     <LogOut className="h-5 w-5" />
                     Logout
                   </button>
@@ -142,9 +231,9 @@ const Profile = () => {
                         Full Name
                       </label>
                       <Input
-                        value={profile.name}
+                        value={profile.full_name}
                         onChange={(e) =>
-                          setProfile({ ...profile, name: e.target.value })
+                          setProfile({ ...profile, full_name: e.target.value })
                         }
                         disabled={!isEditing}
                       />
@@ -158,10 +247,8 @@ const Profile = () => {
                       <Input
                         type="email"
                         value={profile.email}
-                        onChange={(e) =>
-                          setProfile({ ...profile, email: e.target.value })
-                        }
-                        disabled={!isEditing}
+                        disabled
+                        className="opacity-60"
                       />
                     </div>
 
@@ -176,6 +263,7 @@ const Profile = () => {
                           setProfile({ ...profile, phone: e.target.value })
                         }
                         disabled={!isEditing}
+                        placeholder="Enter your phone number"
                       />
                     </div>
 
@@ -190,6 +278,7 @@ const Profile = () => {
                           setProfile({ ...profile, address: e.target.value })
                         }
                         disabled={!isEditing}
+                        placeholder="Enter your address"
                       />
                     </div>
                   </div>
