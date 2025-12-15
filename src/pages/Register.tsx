@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, User, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 const features = [
   "Exclusive member discounts",
@@ -19,6 +20,14 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { signUp, user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,16 +41,39 @@ const Register = () => {
       return;
     }
 
+    if (password.length < 6) {
+      toast({
+        title: "Error",
+        description: "Password harus minimal 6 karakter.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simulate registration
-    setTimeout(() => {
+    const { error } = await signUp(email, password, name);
+
+    if (error) {
+      let errorMessage = error.message;
+      if (error.message.includes("already registered")) {
+        errorMessage = "Email sudah terdaftar. Silakan login atau gunakan email lain.";
+      }
       toast({
-        title: "Account created!",
-        description: "Welcome to TechGear. Please check your email.",
+        title: "Registration Failed",
+        description: errorMessage,
+        variant: "destructive",
       });
       setIsLoading(false);
-    }, 1500);
+      return;
+    }
+
+    toast({
+      title: "Account created!",
+      description: "Selamat datang di TechGear!",
+    });
+    setIsLoading(false);
+    navigate("/");
   };
 
   return (
