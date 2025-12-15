@@ -76,11 +76,13 @@ const Profile = () => {
         console.error("Error fetching profile:", error);
       }
 
+      const profileData = data as { full_name?: string; phone?: string; address?: string } | null;
+
       setProfile({
-        full_name: data?.full_name || "",
+        full_name: profileData?.full_name || "",
         email: user.email || "",
-        phone: data?.phone || "",
-        address: data?.address || "",
+        phone: profileData?.phone || "",
+        address: profileData?.address || "",
       });
       setIsLoading(false);
     };
