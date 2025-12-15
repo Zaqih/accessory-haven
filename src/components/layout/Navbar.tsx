@@ -1,10 +1,22 @@
 import { Link } from "react-router-dom";
-import { ShoppingCart, User, Menu, X } from "lucide-react";
+import { ShoppingCart, User, Menu, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    await signOut();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass">
@@ -41,17 +53,28 @@ const Navbar = () => {
                 </span>
               </Button>
             </Link>
-            <Link to="/profile">
-              <Button variant="ghost" size="icon">
-                <User className="h-5 w-5" />
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button variant="outline" size="sm">Login</Button>
-            </Link>
-            <Link to="/register">
-              <Button size="sm">Sign Up</Button>
-            </Link>
+            {user ? (
+              <>
+                <Link to="/profile">
+                  <Button variant="ghost" size="icon">
+                    <User className="h-5 w-5" />
+                  </Button>
+                </Link>
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button variant="outline" size="sm">Login</Button>
+                </Link>
+                <Link to="/register">
+                  <Button size="sm">Sign Up</Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -77,12 +100,25 @@ const Navbar = () => {
                 Categories
               </Link>
               <div className="flex gap-2 pt-4 border-t border-border">
-                <Link to="/login" className="flex-1">
-                  <Button variant="outline" className="w-full">Login</Button>
-                </Link>
-                <Link to="/register" className="flex-1">
-                  <Button className="w-full">Sign Up</Button>
-                </Link>
+                {user ? (
+                  <>
+                    <Link to="/profile" className="flex-1">
+                      <Button variant="outline" className="w-full">Profile</Button>
+                    </Link>
+                    <Button variant="outline" className="flex-1" onClick={handleLogout}>
+                      Logout
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Link to="/login" className="flex-1">
+                      <Button variant="outline" className="w-full">Login</Button>
+                    </Link>
+                    <Link to="/register" className="flex-1">
+                      <Button className="w-full">Sign Up</Button>
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
