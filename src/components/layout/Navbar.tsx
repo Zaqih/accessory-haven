@@ -1,14 +1,58 @@
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ShoppingCart, User, Menu, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!user) {
+      setCartCount(0);
+      return;
+    }
+
+    const fetchCartCount = async () => {
+      const { data, error } = await supabase
+        .from("cart_items")
+        .select("quantity")
+        .eq("user_id", user.id);
+
+      if (!error && data) {
+        const total = data.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        setCartCount(total);
+      }
+    };
+
+    fetchCartCount();
+
+    // Subscribe to cart changes
+    const channel = supabase
+      .channel("cart-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "cart_items",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchCartCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const handleLogout = async () => {
     await signOut();
@@ -48,9 +92,11 @@ const Navbar = () => {
             <Link to="/cart">
               <Button variant="ghost" size="icon" className="relative">
                 <ShoppingCart className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-primary text-xs flex items-center justify-center text-primary-foreground">
-                  3
-                </span>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-primary text-xs flex items-center justify-center text-primary-foreground">
+                    {cartCount > 99 ? "99+" : cartCount}
+                  </span>
+                )}
               </Button>
             </Link>
             {user ? (
@@ -78,12 +124,24 @@ const Navbar = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            className="md:hidden text-foreground"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
+          <div className="flex items-center gap-2 md:hidden">
+            <Link to="/cart">
+              <Button variant="ghost" size="icon" className="relative">
+                <ShoppingCart className="h-5 w-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-primary text-xs flex items-center justify-center text-primary-foreground">
+                    {cartCount > 99 ? "99+" : cartCount}
+                  </span>
+                )}
+              </Button>
+            </Link>
+            <button
+              className="text-foreground"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu */}
