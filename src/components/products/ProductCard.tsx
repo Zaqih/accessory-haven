@@ -1,5 +1,10 @@
+import React from "react";
 import { Heart, ShoppingCart, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface ProductCardProps {
   id: string;
@@ -12,6 +17,15 @@ interface ProductCardProps {
   isNew?: boolean;
 }
 
+const formatRupiah = (amount: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount * 15000); // Convert USD to IDR approximation
+};
+
 const ProductCard = ({
   id,
   name,
@@ -22,9 +36,72 @@ const ProductCard = ({
   reviews,
   isNew,
 }: ProductCardProps) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const discount = originalPrice
     ? Math.round(((originalPrice - price) / originalPrice) * 100)
     : 0;
+
+  const handleAddToCart = async () => {
+    if (!user) {
+      toast({
+        title: "Login diperlukan",
+        description: "Silakan login untuk menambahkan ke keranjang",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    // Check if item already exists in cart
+    const { data: existingItem } = await supabase
+      .from("cart_items")
+      .select("id, quantity")
+      .eq("user_id", user.id)
+      .eq("product_name", name)
+      .maybeSingle();
+
+    if (existingItem) {
+      // Update quantity if item exists
+      const { error } = await supabase
+        .from("cart_items")
+        .update({ quantity: existingItem.quantity + 1 })
+        .eq("id", existingItem.id);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Gagal menambahkan ke keranjang",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Insert new item
+      const { error } = await supabase.from("cart_items").insert({
+        user_id: user.id,
+        product_name: name,
+        product_image: image,
+        price: price * 15000, // Convert to IDR
+        quantity: 1,
+      });
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Gagal menambahkan ke keranjang",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    toast({
+      title: "Berhasil!",
+      description: `${name} ditambahkan ke keranjang`,
+    });
+  };
 
   return (
     <div className="group relative bg-card rounded-xl border border-border overflow-hidden transition-all duration-300 hover:border-primary/50 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
@@ -57,9 +134,9 @@ const ProductCard = ({
 
         {/* Quick Add */}
         <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform">
-          <Button className="w-full" size="sm">
+          <Button className="w-full" size="sm" onClick={handleAddToCart}>
             <ShoppingCart className="h-4 w-4 mr-2" />
-            Add to Cart
+            Tambah ke Keranjang
           </Button>
         </div>
       </div>
@@ -89,10 +166,10 @@ const ProductCard = ({
 
         {/* Price */}
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-foreground">${price}</span>
+          <span className="text-lg font-bold text-foreground">{formatRupiah(price)}</span>
           {originalPrice && (
             <span className="text-sm text-muted-foreground line-through">
-              ${originalPrice}
+              {formatRupiah(originalPrice)}
             </span>
           )}
         </div>
