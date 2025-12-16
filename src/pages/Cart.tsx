@@ -39,10 +39,10 @@ const paymentMethods = [
     info: {
       type: "rekening",
       banks: [
-        { name: "BCA", number: "1234567890", holder: "PT TechGear Indonesia" },
-        { name: "Mandiri", number: "0987654321", holder: "PT TechGear Indonesia" },
-        { name: "BNI", number: "1122334455", holder: "PT TechGear Indonesia" },
-        { name: "BRI", number: "5566778899", holder: "PT TechGear Indonesia" },
+        { name: "BCA", number: "1234567890", holder: "PT DAZMerch Indonesia" },
+        { name: "Mandiri", number: "0987654321", holder: "PT DAZMerch Indonesia" },
+        { name: "BNI", number: "1122334455", holder: "PT DAZMerch Indonesia" },
+        { name: "BRI", number: "5566778899", holder: "PT DAZMerch Indonesia" },
       ]
     }
   },
@@ -54,7 +54,7 @@ const paymentMethods = [
     info: {
       type: "phone",
       number: "081234567890",
-      name: "TechGear Store"
+      name: "DAZMerch Store"
     }
   },
 ];

@@ -184,6 +184,32 @@ const AdminDashboard = () => {
     };
 
     checkAdminAndFetchData();
+
+    // Realtime subscription for products
+    const productsChannel = supabase
+      .channel('products-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products',
+        },
+        async (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setProducts(prev => [payload.new as Product, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setProducts(prev => prev.map(p => p.id === payload.new.id ? payload.new as Product : p));
+          } else if (payload.eventType === 'DELETE') {
+            setProducts(prev => prev.filter(p => p.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(productsChannel);
+    };
   }, [user, navigate, toast]);
 
   const handleSaveProduct = async () => {
@@ -354,7 +380,7 @@ const AdminDashboard = () => {
         <div className="p-6">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold">T</span>
+              <span className="text-primary-foreground font-bold">D</span>
             </div>
             <span className="text-xl font-bold text-foreground">Admin</span>
           </Link>
