@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 interface ProductCardProps {
   id: string;
@@ -43,7 +43,10 @@ const ProductCard = ({
     ? Math.round(((originalPrice - price) / originalPrice) * 100)
     : 0;
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (isAdmin) {
       toast({
         title: "Akses Ditolak",
@@ -110,7 +113,10 @@ const ProductCard = ({
   };
 
   return (
-    <div className="group relative bg-card rounded-xl border border-border overflow-hidden transition-all duration-300 hover:border-primary/50 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+    <Link
+      to={`/products/${id}`}
+      className="group relative bg-card rounded-xl border border-border overflow-hidden transition-all duration-300 hover:border-primary/50 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] block"
+    >
       <div className="relative aspect-square bg-secondary overflow-hidden">
         <img
           src={image}
@@ -131,7 +137,10 @@ const ProductCard = ({
           )}
         </div>
 
-        <button className="absolute top-3 right-3 w-8 h-8 rounded-full glass flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground">
+        <button 
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full glass flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground"
+        >
           <Heart className="h-4 w-4" />
         </button>
 
@@ -176,7 +185,7 @@ const ProductCard = ({
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 
