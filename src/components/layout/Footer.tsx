@@ -12,9 +12,9 @@ const Footer = () => {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">T</span>
+                <span className="text-primary-foreground font-bold text-lg">D</span>
               </div>
-              <span className="text-xl font-bold text-foreground">TechGear</span>
+              <span className="text-xl font-bold text-foreground">DAZMerch</span>
             </div>
             <p className="text-muted-foreground text-sm">
               Premium smartphone accessories for the modern lifestyle. Quality meets innovation.
@@ -73,7 +73,7 @@ const Footer = () => {
         </div>
 
         <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground text-sm">
-          <p>&copy; 2024 TechGear. All rights reserved.</p>
+          <p>&copy; 2025 DAZMerch. All rights reserved.</p>
         </div>
       </div>
     </footer>

@@ -58,9 +58,9 @@ const Login = () => {
         {/* Logo */}
         <Link to="/" className="flex items-center justify-center gap-2 mb-8">
           <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xl">T</span>
+            <span className="text-primary-foreground font-bold text-xl">D</span>
           </div>
-          <span className="text-2xl font-bold text-foreground">TechGear</span>
+          <span className="text-2xl font-bold text-foreground">DAZMerch</span>
         </Link>
 
         {/* Card */}

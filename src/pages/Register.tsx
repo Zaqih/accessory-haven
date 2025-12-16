@@ -70,7 +70,7 @@ const Register = () => {
 
     toast({
       title: "Account created!",
-      description: "Selamat datang di TechGear!",
+      description: "Selamat datang di DAZMerch!",
     });
     setIsLoading(false);
     navigate("/");
@@ -84,13 +84,13 @@ const Register = () => {
         <div className="relative z-10 flex flex-col justify-center p-12 text-primary-foreground">
           <div className="flex items-center gap-2 mb-12">
             <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-              <span className="font-bold text-xl">T</span>
+              <span className="font-bold text-xl">D</span>
             </div>
-            <span className="text-2xl font-bold">TechGear</span>
+            <span className="text-2xl font-bold">DAZMerch</span>
           </div>
 
           <h2 className="text-4xl font-bold mb-6">
-            Join the TechGear Community
+            Join the DAZMerch Community
           </h2>
           <p className="text-lg opacity-90 mb-8">
             Create an account to unlock exclusive benefits and enhance your
@@ -121,9 +121,9 @@ const Register = () => {
           {/* Mobile Logo */}
           <Link to="/" className="lg:hidden flex items-center justify-center gap-2 mb-8">
             <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">T</span>
+              <span className="text-primary-foreground font-bold text-xl">D</span>
             </div>
-            <span className="text-2xl font-bold text-foreground">TechGear</span>
+            <span className="text-2xl font-bold text-foreground">DAZMerch</span>
           </Link>
 
           {/* Card */}
@@ -133,7 +133,7 @@ const Register = () => {
                 Create Account
               </h1>
               <p className="text-muted-foreground">
-                Start your journey with TechGear
+                Start your journey with DAZMerch
               </p>
             </div>
 
