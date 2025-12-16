@@ -23,7 +23,7 @@ const formatRupiah = (amount: number) => {
     currency: "IDR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount * 15000); // Convert USD to IDR approximation
+  }).format(amount * 15000);
 };
 
 const ProductCard = ({
@@ -36,7 +36,7 @@ const ProductCard = ({
   reviews,
   isNew,
 }: ProductCardProps) => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const discount = originalPrice
@@ -44,6 +44,15 @@ const ProductCard = ({
     : 0;
 
   const handleAddToCart = async () => {
+    if (isAdmin) {
+      toast({
+        title: "Akses Ditolak",
+        description: "Admin tidak dapat melakukan pembelian",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!user) {
       toast({
         title: "Login diperlukan",
@@ -54,7 +63,6 @@ const ProductCard = ({
       return;
     }
 
-    // Check if item already exists in cart
     const { data: existingItem } = await supabase
       .from("cart_items")
       .select("id, quantity")
@@ -63,7 +71,6 @@ const ProductCard = ({
       .maybeSingle();
 
     if (existingItem) {
-      // Update quantity if item exists
       const { error } = await supabase
         .from("cart_items")
         .update({ quantity: existingItem.quantity + 1 })
@@ -78,12 +85,11 @@ const ProductCard = ({
         return;
       }
     } else {
-      // Insert new item
       const { error } = await supabase.from("cart_items").insert({
         user_id: user.id,
         product_name: name,
         product_image: image,
-        price: price * 15000, // Convert to IDR
+        price: price * 15000,
         quantity: 1,
       });
 
@@ -105,7 +111,6 @@ const ProductCard = ({
 
   return (
     <div className="group relative bg-card rounded-xl border border-border overflow-hidden transition-all duration-300 hover:border-primary/50 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-      {/* Image Container */}
       <div className="relative aspect-square bg-secondary overflow-hidden">
         <img
           src={image}
@@ -113,7 +118,6 @@ const ProductCard = ({
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
         
-        {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           {isNew && (
             <span className="px-2 py-1 text-xs font-semibold rounded-md gradient-primary text-primary-foreground">
@@ -127,27 +131,26 @@ const ProductCard = ({
           )}
         </div>
 
-        {/* Wishlist Button */}
         <button className="absolute top-3 right-3 w-8 h-8 rounded-full glass flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground">
           <Heart className="h-4 w-4" />
         </button>
 
-        {/* Quick Add */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform">
-          <Button className="w-full" size="sm" onClick={handleAddToCart}>
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Tambah ke Keranjang
-          </Button>
-        </div>
+        {/* Only show Add to Cart button for non-admin users */}
+        {!isAdmin && (
+          <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform">
+            <Button className="w-full" size="sm" onClick={handleAddToCart}>
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Tambah ke Keranjang
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Content */}
       <div className="p-4">
         <h3 className="font-semibold text-foreground mb-1 truncate group-hover:text-primary transition-colors">
           {name}
         </h3>
         
-        {/* Rating */}
         <div className="flex items-center gap-1 mb-2">
           <div className="flex items-center">
             {[...Array(5)].map((_, i) => (
@@ -164,7 +167,6 @@ const ProductCard = ({
           <span className="text-xs text-muted-foreground">({reviews})</span>
         </div>
 
-        {/* Price */}
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold text-foreground">{formatRupiah(price)}</span>
           {originalPrice && (
