@@ -328,9 +328,10 @@ const Profile = () => {
                       </div>
                     ) : (
                       orders.map((order) => (
-                        <div
+                        <Link
+                          to={`/orders/${order.id}`}
                           key={order.id}
-                          className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border"
+                          className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border hover:border-primary/50 transition-colors"
                         >
                           <div>
                             <p className="font-semibold text-foreground">
@@ -364,7 +365,7 @@ const Profile = () => {
                                order.status === "cancelled" ? "Dibatalkan" : "Menunggu"}
                             </span>
                           </div>
-                        </div>
+                        </Link>
                       ))
                     )}
                   </div>
