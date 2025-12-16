@@ -14,7 +14,7 @@ import {
   TrendingUp,
   DollarSign,
   Save,
-  X,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,13 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Product {
   id: string;
@@ -54,6 +61,17 @@ interface UserProfile {
   created_at: string;
 }
 
+interface Order {
+  id: string;
+  user_id: string;
+  total_amount: number;
+  shipping_cost: number;
+  payment_method: string;
+  status: string;
+  created_at: string;
+  profiles?: { full_name: string | null } | null;
+}
+
 const formatRupiah = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -68,6 +86,7 @@ const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -87,6 +106,13 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Calculate stats from real data
+  const totalRevenue = orders
+    .filter(o => o.status === "completed")
+    .reduce((sum, o) => sum + Number(o.total_amount), 0);
+  
+  const totalOrders = orders.length;
+
   useEffect(() => {
     if (!user) {
       navigate("/login");
@@ -94,7 +120,6 @@ const AdminDashboard = () => {
     }
 
     const checkAdminAndFetchData = async () => {
-      // Check if user is admin
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
@@ -132,6 +157,27 @@ const AdminDashboard = () => {
 
       if (usersData) {
         setUsers(usersData as UserProfile[]);
+      }
+
+      // Fetch orders
+      const { data: ordersData } = await supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (ordersData) {
+        // Get user profiles for orders
+        const ordersWithProfiles = await Promise.all(
+          ordersData.map(async (order) => {
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("user_id", order.user_id)
+              .maybeSingle();
+            return { ...order, profiles: profileData } as Order;
+          })
+        );
+        setOrders(ordersWithProfiles);
       }
 
       setIsLoading(false);
@@ -223,6 +269,21 @@ const AdminDashboard = () => {
     setIsDialogOpen(true);
   };
 
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: newStatus })
+      .eq("id", orderId);
+
+    if (error) {
+      toast({ title: "Error", description: "Gagal mengupdate status", variant: "destructive" });
+      return;
+    }
+
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    toast({ title: "Berhasil", description: "Status pesanan diupdate" });
+  };
+
   const resetForm = () => {
     setEditingProduct(null);
     setProductForm({
@@ -240,17 +301,36 @@ const AdminDashboard = () => {
 
   const sidebarItems = [
     { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { id: "orders", icon: ShoppingCart, label: "Pesanan" },
     { id: "products", icon: Package, label: "Produk" },
     { id: "customers", icon: Users, label: "Pengguna" },
     { id: "settings", icon: Settings, label: "Pengaturan" },
   ];
 
   const stats = [
-    { label: "Total Pendapatan", value: formatRupiah(45231000), change: "+12.5%", icon: DollarSign },
-    { label: "Total Pesanan", value: "1,234", change: "+8.2%", icon: ShoppingCart },
-    { label: "Total Produk", value: products.length.toString(), change: "+3.1%", icon: Package },
-    { label: "Total Pengguna", value: users.length.toString(), change: "+15.3%", icon: Users },
+    { label: "Total Pendapatan", value: formatRupiah(totalRevenue), icon: DollarSign },
+    { label: "Total Pesanan", value: totalOrders.toString(), icon: ShoppingCart },
+    { label: "Total Produk", value: products.length.toString(), icon: Package },
+    { label: "Total Pengguna", value: users.length.toString(), icon: Users },
   ];
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed": return "bg-green-500/20 text-green-400";
+      case "pending": return "bg-yellow-500/20 text-yellow-400";
+      case "processing": return "bg-blue-500/20 text-blue-400";
+      case "cancelled": return "bg-red-500/20 text-red-400";
+      default: return "bg-gray-500/20 text-gray-400";
+    }
+  };
+
+  const getPaymentMethodName = (method: string) => {
+    switch (method) {
+      case "transfer": return "Transfer Bank";
+      case "ewallet": return "E-Wallet";
+      default: return method;
+    }
+  };
 
   if (isLoading) {
     return (
@@ -293,6 +373,11 @@ const AdminDashboard = () => {
             >
               <item.icon className="h-5 w-5" />
               {item.label}
+              {item.id === "orders" && orders.filter(o => o.status === "pending").length > 0 && (
+                <span className="ml-auto bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
+                  {orders.filter(o => o.status === "pending").length}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -440,16 +525,129 @@ const AdminDashboard = () => {
                     <div className="w-12 h-12 rounded-lg gradient-primary flex items-center justify-center">
                       <stat.icon className="h-6 w-6 text-primary-foreground" />
                     </div>
-                    <span className="text-sm font-medium text-green-400 flex items-center gap-1">
-                      <TrendingUp className="h-4 w-4" />
-                      {stat.change}
-                    </span>
                   </div>
                   <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                   <p className="text-sm text-muted-foreground">{stat.label}</p>
                 </div>
               ))}
             </div>
+
+            {/* Recent Orders on Dashboard */}
+            <div className="glass rounded-xl p-6 border border-border">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-foreground">Pesanan Terbaru</h3>
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab("orders")}>
+                  Lihat Semua
+                </Button>
+              </div>
+              <div className="space-y-4">
+                {orders.slice(0, 5).map((order) => (
+                  <div key={order.id} className="flex items-center justify-between p-4 rounded-lg bg-secondary/50">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-sm font-bold text-primary-foreground">
+                        {(order.profiles?.full_name || "U").charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {order.profiles?.full_name || "Pengguna"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(order.created_at).toLocaleDateString("id-ID")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-foreground">{formatRupiah(Number(order.total_amount))}</p>
+                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {orders.length === 0 && (
+                  <p className="text-center text-muted-foreground py-8">Belum ada pesanan</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Orders Content */}
+        {activeTab === "orders" && (
+          <div className="glass rounded-xl border border-border animate-fade-in overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-secondary/50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Pelanggan</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Tanggal</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Metode Bayar</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Total</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">Status</th>
+                  <th className="px-6 py-4 text-right text-sm font-semibold text-foreground">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {orders.map((order) => (
+                  <tr key={order.id} className="hover:bg-secondary/30">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-sm font-bold text-primary-foreground">
+                          {(order.profiles?.full_name || "U").charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-foreground">
+                          {order.profiles?.full_name || "Pengguna"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-muted-foreground">
+                      {new Date(order.created_at).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-6 py-4 text-muted-foreground">
+                      {getPaymentMethodName(order.payment_method)}
+                    </td>
+                    <td className="px-6 py-4 text-foreground font-semibold">
+                      {formatRupiah(Number(order.total_amount))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <Select
+                          value={order.status}
+                          onValueChange={(value) => handleUpdateOrderStatus(order.id, value)}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="processing">Processing</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {orders.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                      Belum ada pesanan.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
 
