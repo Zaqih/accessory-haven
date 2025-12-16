@@ -136,12 +136,17 @@ const Profile = () => {
   };
 
   const handleLogout = async () => {
-    await signOut();
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out.",
-    });
-    navigate("/");
+    try {
+      await signOut();
+      toast({
+        title: "Berhasil Logout",
+        description: "Anda telah keluar dari akun.",
+      });
+      navigate("/login");
+    } catch (error) {
+      // Even if there's an error, redirect to login
+      navigate("/login");
+    }
   };
 
   const getInitials = () => {
