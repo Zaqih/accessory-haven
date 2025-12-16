@@ -188,6 +188,24 @@ const Cart = () => {
 
       if (itemsError) throw itemsError;
 
+      // Reduce stock for each product
+      for (const item of cartItems) {
+        // Find product by name and reduce stock
+        const { data: productData } = await supabase
+          .from("products")
+          .select("id, stock")
+          .eq("name", item.product_name)
+          .maybeSingle();
+
+        if (productData) {
+          const newStock = Math.max(0, productData.stock - item.quantity);
+          await supabase
+            .from("products")
+            .update({ stock: newStock })
+            .eq("id", productData.id);
+        }
+      }
+
       // Clear cart after successful order
       await supabase.from("cart_items").delete().eq("user_id", user.id);
       

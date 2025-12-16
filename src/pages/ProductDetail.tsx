@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Star, ShoppingCart, Heart, Minus, Plus } from "lucide-react";
+import { ArrowLeft, Star, ShoppingCart, Heart, Minus, Plus, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,15 @@ interface Product {
   reviews_count: number | null;
 }
 
+interface Review {
+  id: string;
+  user_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  user_name?: string;
+}
+
 const formatRupiah = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -37,8 +47,13 @@ const ProductDetail = () => {
   const { toast } = useToast();
   const { user, isAdmin } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [userReview, setUserReview] = useState<Review | null>(null);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -62,11 +77,90 @@ const ProductDetail = () => {
       }
 
       setProduct(data);
+      fetchReviews();
       setIsLoading(false);
     };
 
+    const fetchReviews = async () => {
+      if (!id) return;
+
+      const { data: reviewsData } = await supabase
+        .from("reviews")
+        .select("*")
+        .eq("product_id", id)
+        .order("created_at", { ascending: false });
+
+      if (reviewsData) {
+        // Get user names for reviews
+        const reviewsWithNames = await Promise.all(
+          reviewsData.map(async (review) => {
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("user_id", review.user_id)
+              .maybeSingle();
+            
+            return {
+              ...review,
+              user_name: profileData?.full_name || "Pengguna",
+            };
+          })
+        );
+        setReviews(reviewsWithNames);
+
+        // Check if current user has reviewed
+        if (user) {
+          const existing = reviewsWithNames.find(r => r.user_id === user.id);
+          if (existing) {
+            setUserReview(existing);
+            setNewRating(existing.rating);
+            setNewComment(existing.comment || "");
+          }
+        }
+      }
+    };
+
     fetchProduct();
-  }, [id, navigate, toast]);
+
+    // Realtime for reviews
+    const channel = supabase
+      .channel(`reviews-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reviews',
+          filter: `product_id=eq.${id}`,
+        },
+        () => {
+          fetchReviews();
+        }
+      )
+      .subscribe();
+
+    // Realtime for product (stock updates)
+    const productChannel = supabase
+      .channel(`product-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'products',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          setProduct(payload.new as Product);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(productChannel);
+    };
+  }, [id, navigate, toast, user]);
 
   const handleAddToCart = async () => {
     if (isAdmin) {
@@ -134,6 +228,68 @@ const ProductDetail = () => {
       title: "Berhasil!",
       description: `${product.name} (${quantity}) ditambahkan ke keranjang`,
     });
+  };
+
+  const handleSubmitReview = async () => {
+    if (!user) {
+      toast({
+        title: "Login diperlukan",
+        description: "Silakan login untuk memberikan ulasan",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    if (!product) return;
+
+    setIsSubmittingReview(true);
+
+    try {
+      if (userReview) {
+        // Update existing review
+        const { error } = await supabase
+          .from("reviews")
+          .update({
+            rating: newRating,
+            comment: newComment || null,
+          })
+          .eq("id", userReview.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Berhasil!",
+          description: "Ulasan Anda telah diperbarui",
+        });
+      } else {
+        // Create new review
+        const { error } = await supabase
+          .from("reviews")
+          .insert({
+            product_id: product.id,
+            user_id: user.id,
+            rating: newRating,
+            comment: newComment || null,
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: "Berhasil!",
+          description: "Terima kasih atas ulasan Anda",
+        });
+      }
+    } catch (error) {
+      console.error("Review error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal menyimpan ulasan",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   const discount = product?.original_price
@@ -225,7 +381,7 @@ const ProductDetail = () => {
                   ))}
                 </div>
                 <span className="text-muted-foreground">
-                  ({product.reviews_count || 0} ulasan)
+                  {(product.rating || 0).toFixed(1)} ({product.reviews_count || 0} ulasan)
                 </span>
               </div>
 
@@ -294,6 +450,121 @@ const ProductDetail = () => {
                   <ShoppingCart className="h-5 w-5 mr-2" />
                   {product.stock > 0 ? "Tambah ke Keranjang" : "Stok Habis"}
                 </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Reviews Section */}
+          <div className="mt-16">
+            <h2 className="text-2xl font-bold text-foreground mb-8">
+              Ulasan Produk ({reviews.length})
+            </h2>
+
+            {/* Write Review */}
+            {!isAdmin && user && (
+              <div className="glass rounded-xl p-6 mb-8">
+                <h3 className="font-semibold text-foreground mb-4">
+                  {userReview ? "Edit Ulasan Anda" : "Tulis Ulasan"}
+                </h3>
+                
+                {/* Rating Selection */}
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-sm text-muted-foreground">Rating:</span>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setNewRating(star)}
+                        className="p-1"
+                      >
+                        <Star
+                          className={`h-6 w-6 transition-colors ${
+                            star <= newRating
+                              ? "text-primary fill-primary"
+                              : "text-muted-foreground hover:text-primary"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Textarea
+                  placeholder="Bagikan pengalaman Anda dengan produk ini..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="mb-4"
+                  rows={3}
+                />
+
+                <Button
+                  onClick={handleSubmitReview}
+                  disabled={isSubmittingReview}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {isSubmittingReview ? "Mengirim..." : userReview ? "Perbarui Ulasan" : "Kirim Ulasan"}
+                </Button>
+              </div>
+            )}
+
+            {!user && !isAdmin && (
+              <div className="glass rounded-xl p-6 mb-8 text-center">
+                <p className="text-muted-foreground mb-4">
+                  Silakan login untuk memberikan ulasan
+                </p>
+                <Button onClick={() => navigate("/login")}>Login</Button>
+              </div>
+            )}
+
+            {/* Reviews List */}
+            <div className="space-y-4">
+              {reviews.length === 0 ? (
+                <div className="text-center py-12">
+                  <Star className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">
+                    Belum ada ulasan untuk produk ini
+                  </p>
+                </div>
+              ) : (
+                reviews.map((review) => (
+                  <div
+                    key={review.id}
+                    className="glass rounded-xl p-6"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {review.user_name}
+                          {review.user_id === user?.id && (
+                            <span className="ml-2 text-xs text-primary">(Anda)</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(review.created_at).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <div className="flex items-center">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${
+                              i < review.rating
+                                ? "text-primary fill-primary"
+                                : "text-muted-foreground"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {review.comment && (
+                      <p className="text-muted-foreground">{review.comment}</p>
+                    )}
+                  </div>
+                ))
               )}
             </div>
           </div>
