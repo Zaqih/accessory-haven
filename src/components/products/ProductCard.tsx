@@ -23,7 +23,7 @@ const formatRupiah = (amount: number) => {
     currency: "IDR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount * 15000);
+  }).format(amount);
 };
 
 const ProductCard = ({
@@ -89,7 +89,7 @@ const ProductCard = ({
         user_id: user.id,
         product_name: name,
         product_image: image,
-        price: price * 15000,
+        price: price,
         quantity: 1,
       });
 
