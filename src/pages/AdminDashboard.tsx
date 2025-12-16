@@ -245,21 +245,19 @@ const AdminDashboard = () => {
         return;
       }
 
-      setProducts(products.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p));
+      // Realtime will handle state update
       toast({ title: "Berhasil", description: "Produk berhasil diupdate" });
     } else {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("products")
-        .insert(productData)
-        .select()
-        .single();
+        .insert(productData);
 
       if (error) {
         toast({ title: "Error", description: "Gagal menambahkan produk", variant: "destructive" });
         return;
       }
 
-      setProducts([data as Product, ...products]);
+      // Realtime will handle state update
       toast({ title: "Berhasil", description: "Produk berhasil ditambahkan" });
     }
 
@@ -275,7 +273,7 @@ const AdminDashboard = () => {
       return;
     }
 
-    setProducts(products.filter(p => p.id !== id));
+    // Realtime will handle state update
     toast({ title: "Berhasil", description: "Produk berhasil dihapus" });
   };
 
