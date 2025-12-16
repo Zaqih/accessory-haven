@@ -20,36 +20,30 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
-const orders = [
-  {
-    id: "ORD-001",
-    date: "Dec 12, 2024",
-    status: "Delivered",
-    total: 149.99,
-    items: 3,
-  },
-  {
-    id: "ORD-002",
-    date: "Dec 8, 2024",
-    status: "Shipped",
-    total: 79.99,
-    items: 2,
-  },
-  {
-    id: "ORD-003",
-    date: "Dec 1, 2024",
-    status: "Processing",
-    total: 249.99,
-    items: 4,
-  },
-];
+interface Order {
+  id: string;
+  created_at: string;
+  status: string;
+  total_amount: number;
+  item_count?: number;
+}
+
+const formatRupiah = (amount: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
   const { toast } = useToast();
-  const { user, signOut } = useAuth();
+  const { user, isLoading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState({
@@ -60,35 +54,58 @@ const Profile = () => {
   });
 
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading) return;
+
+    // Redirect if not logged in
     if (!user) {
       navigate("/login");
       return;
     }
 
-    const fetchProfile = async () => {
-      const { data, error } = await supabase
+    const fetchData = async () => {
+      // Fetch profile
+      const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (error) {
-        console.error("Error fetching profile:", error);
+      setProfile({
+        full_name: (profileData as { full_name?: string })?.full_name || "",
+        email: user.email || "",
+        phone: (profileData as { phone?: string })?.phone || "",
+        address: (profileData as { address?: string })?.address || "",
+      });
+
+      // Fetch orders
+      const { data: ordersData } = await supabase
+        .from("orders")
+        .select("id, created_at, status, total_amount")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (ordersData) {
+        // Get item counts for each order
+        const ordersWithCounts = await Promise.all(
+          ordersData.map(async (order) => {
+            const { data: items } = await supabase
+              .from("order_items")
+              .select("quantity")
+              .eq("order_id", order.id);
+            
+            const itemCount = items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+            return { ...order, item_count: itemCount };
+          })
+        );
+        setOrders(ordersWithCounts);
       }
 
-      const profileData = data as { full_name?: string; phone?: string; address?: string } | null;
-
-      setProfile({
-        full_name: profileData?.full_name || "",
-        email: user.email || "",
-        phone: profileData?.phone || "",
-        address: profileData?.address || "",
-      });
       setIsLoading(false);
     };
 
-    fetchProfile();
-  }, [user, navigate]);
+    fetchData();
+  }, [user, authLoading, navigate]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -294,37 +311,57 @@ const Profile = () => {
                   </h3>
 
                   <div className="space-y-4">
-                    {orders.map((order) => (
-                      <div
-                        key={order.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border"
-                      >
-                        <div>
-                          <p className="font-semibold text-foreground">
-                            {order.id}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {order.date} • {order.items} items
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-foreground">
-                            ${order.total}
-                          </p>
-                          <span
-                            className={`text-xs px-2 py-1 rounded-full ${
-                              order.status === "Delivered"
-                                ? "bg-green-500/20 text-green-400"
-                                : order.status === "Shipped"
-                                ? "bg-blue-500/20 text-blue-400"
-                                : "bg-yellow-500/20 text-yellow-400"
-                            }`}
-                          >
-                            {order.status}
-                          </span>
-                        </div>
+                    {orders.length === 0 ? (
+                      <div className="text-center py-12">
+                        <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground mb-4">
+                          Belum ada pesanan
+                        </p>
+                        <Link to="/products">
+                          <Button>Belanja Sekarang</Button>
+                        </Link>
                       </div>
-                    ))}
+                    ) : (
+                      orders.map((order) => (
+                        <div
+                          key={order.id}
+                          className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border"
+                        >
+                          <div>
+                            <p className="font-semibold text-foreground">
+                              #{order.id.slice(0, 8).toUpperCase()}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(order.created_at).toLocaleDateString("id-ID", { 
+                                day: "numeric", 
+                                month: "short", 
+                                year: "numeric" 
+                              })} • {order.item_count || 0} item
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-foreground">
+                              {formatRupiah(order.total_amount)}
+                            </p>
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                order.status === "completed"
+                                  ? "bg-green-500/20 text-green-400"
+                                  : order.status === "processing"
+                                  ? "bg-blue-500/20 text-blue-400"
+                                  : order.status === "cancelled"
+                                  ? "bg-red-500/20 text-red-400"
+                                  : "bg-yellow-500/20 text-yellow-400"
+                              }`}
+                            >
+                              {order.status === "completed" ? "Selesai" : 
+                               order.status === "processing" ? "Diproses" : 
+                               order.status === "cancelled" ? "Dibatalkan" : "Menunggu"}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
