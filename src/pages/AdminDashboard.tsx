@@ -496,11 +496,24 @@ const AdminDashboard = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label>Kategori *</Label>
-                        <Input
+                        <Select
                           value={productForm.category}
-                          onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                          placeholder="cases, audio, dll"
-                        />
+                          onValueChange={(value) => setProductForm({ ...productForm, category: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih kategori" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cases">Cases & Protection</SelectItem>
+                            <SelectItem value="audio">Audio & Headphones</SelectItem>
+                            <SelectItem value="chargers">Chargers & Cables</SelectItem>
+                            <SelectItem value="accessories">Accessories</SelectItem>
+                            <SelectItem value="gaming">Gaming</SelectItem>
+                            <SelectItem value="wearables">Wearables</SelectItem>
+                            <SelectItem value="storage">Storage</SelectItem>
+                            <SelectItem value="other">Lainnya</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label>Stok</Label>
