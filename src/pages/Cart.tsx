@@ -157,20 +157,57 @@ const Cart = () => {
 
     setIsCheckingOut(true);
     
-    // Simulate checkout process
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Clear cart after checkout
-    await supabase.from("cart_items").delete().eq("user_id", user.id);
-    
-    setCartItems([]);
-    setIsCheckingOut(false);
-    setShowPaymentInfo(false);
-    
-    toast({
-      title: "Pesanan Berhasil!",
-      description: `Pembayaran via ${paymentMethods.find(p => p.id === selectedPayment)?.name}. Terima kasih telah berbelanja!`,
-    });
+    try {
+      // Create order
+      const { data: orderData, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          user_id: user.id,
+          total_amount: total,
+          shipping_cost: shipping,
+          payment_method: selectedPayment,
+          status: "completed",
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = cartItems.map(item => ({
+        order_id: orderData.id,
+        product_name: item.product_name,
+        product_image: item.product_image,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Clear cart after successful order
+      await supabase.from("cart_items").delete().eq("user_id", user.id);
+      
+      setCartItems([]);
+      setShowPaymentInfo(false);
+      
+      toast({
+        title: "Pesanan Berhasil!",
+        description: `Pembayaran via ${paymentMethods.find(p => p.id === selectedPayment)?.name}. Terima kasih telah berbelanja!`,
+      });
+    } catch (error) {
+      console.error("Checkout error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal memproses pesanan. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingOut(false);
+    }
   };
 
   const copyToClipboard = (text: string) => {
