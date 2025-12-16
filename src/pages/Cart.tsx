@@ -9,6 +9,7 @@ import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ShieldAlert } from "lucide-react";
 
 interface CartItem {
   id: string;
@@ -65,11 +66,16 @@ const Cart = () => {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showPaymentInfo, setShowPaymentInfo] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (isAdmin) {
+      setIsLoading(false);
+      return;
+    }
+
     if (!user) {
       setCartItems([]);
       setIsLoading(false);
@@ -204,7 +210,23 @@ const Cart = () => {
             Keranjang Belanja
           </h1>
 
-          {!user ? (
+          {isAdmin ? (
+            <div className="text-center py-16">
+              <ShieldAlert className="h-24 w-24 text-muted-foreground mx-auto mb-6" />
+              <h2 className="text-2xl font-semibold text-foreground mb-2">
+                Akses Ditolak
+              </h2>
+              <p className="text-muted-foreground mb-8">
+                Admin tidak dapat mengakses keranjang belanja. Fitur ini hanya untuk pelanggan.
+              </p>
+              <Link to="/admin">
+                <Button variant="hero" size="lg">
+                  Kembali ke Dashboard
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+            </div>
+          ) : !user ? (
             <div className="text-center py-16">
               <ShoppingBag className="h-24 w-24 text-muted-foreground mx-auto mb-6" />
               <h2 className="text-2xl font-semibold text-foreground mb-2">
