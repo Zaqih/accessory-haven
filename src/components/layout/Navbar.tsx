@@ -97,9 +97,6 @@ const Navbar = () => {
                 <Link to="/products" className="text-foreground/80 hover:text-primary transition-colors">
                   Products
                 </Link>
-                <Link to="/categories" className="text-foreground/80 hover:text-primary transition-colors">
-                  Categories
-                </Link>
               </>
             )}
           </div>
@@ -195,9 +192,6 @@ const Navbar = () => {
                   </Link>
                   <Link to="/products" className="text-foreground/80 hover:text-primary transition-colors">
                     Products
-                  </Link>
-                  <Link to="/categories" className="text-foreground/80 hover:text-primary transition-colors">
-                    Categories
                   </Link>
                 </>
               )}
